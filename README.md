@@ -62,6 +62,47 @@ button:hover {
             <button type="submit">Login</button>
         </form>
     </div>
+    <script>
+        const express = require('express');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const app = express();
+const PORT = 3000;
+app.use(bodyParser.json());
+const users = []; // This will act as our database for this example
+// Register endpoint
+app.post('/register', (req, res) => {
+    const { username, email, password } = req.body;
+    const hashedPassword = bcrypt.hashSync(password, 8);
+    users.push({ username, email, password: hashedPassword });
+    res.status(201).send('User registered successfully');
+});
+// Login endpoint
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
+    const user = users.find(u => u.email === email);
+    if (!user) return res.status(404).send('User not found');
+    const passwordIsValid = bcrypt.compareSync(password, user.password);
+    if (!passwordIsValid) return res.status(401).send('Invalid password');
+    const token = jwt.sign({ id: user.email }, 'secret', { expiresIn: 86400 });
+    res.status(200).send({ auth: true, token });
+});
+// Profile endpoint
+app.get('/profile', (req, res) => {
+    const token = req.headers['x-access-token'];
+    if (!token) return res.status(401).send('No token provided');
+    jwt.verify(token, 'secret', (err, decoded) => {
+        if (err) return res.status(500).send('Failed to authenticate token');
+        const user = users.find(u => u.email === decoded.id);
+        if (!user) return res.status(404).send('User not found');
+        res.status(200).send(user);
+    });
+});
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
+    </script>
     <script src="scripts.js">// scripts.js
 const express = require('express');
 const bodyParser = require('body-parser');
