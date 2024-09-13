@@ -63,46 +63,103 @@ button:hover {
         </form>
     </div>
     <script src="scripts.js">// scripts.js
-        document.getElementById('register-form').addEventListener('submit', function(e) {
-            e.preventDefault();    
-            const username = document.getElementById('reg-username').value;
-            const email = document.getElementById('reg-email').value;
-            const password = document.getElementById('reg-password').value;            
-            fetch('http://localhost:3000/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, email, password })
-            })
-            .then(response => response.text())
-            .then(data => alert(data))
-            .catch(error => console.error('Error:', error));
-        });        
-        document.getElementById('login-form').addEventListener('submit', function(e) {
-            e.preventDefault();            
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;            
-            fetch('http://localhost:3000/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, password })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.auth) {
-                    alert('Login successful');
-                    // Store the token for future use
-                    localStorage.setItem('token', data.token);
-                } else {
-                    alert('Login failed');
-                }
-            })
-            .catch(error => console.error('Error:', error));
-        });
+const express = require('express');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const app = express();
+const PORT = 3000;
+app.use(bodyParser.json());
+const users = []; // This will act as our database for this example
+// Register endpoint
+app.post('/register', (req, res) => {
+    const { username, email, password } = req.body;
+    const hashedPassword = bcrypt.hashSync(password, 8);
+    users.push({ username, email, password: hashedPassword });
+    res.status(201).send('User registered successfully');
+});
+// Login endpoint
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
+    const user = users.find(u => u.email === email);
+    if (!user) return res.status(404).send('User not found');
+    const passwordIsValid = bcrypt.compareSync(password, user.password);
+    if (!passwordIsValid) return res.status(401).send('Invalid password');
+    const token = jwt.sign({ id: user.email }, 'secret', { expiresIn: 86400 });
+    res.status(200).send({ auth: true, token });
+});
+// Profile endpoint
+app.get('/profile', (req, res) => {
+    const token = req.headers['x-access-token'];
+    if (!token) return res.status(401).send('No token provided');
+    jwt.verify(token, 'secret', (err, decoded) => {
+        if (err) return res.status(500).send('Failed to authenticate token');
+        const user = users.find(u => u.email === decoded.id);
+        if (!user) return res.status(404).send('User not found');
+        res.status(200).send(user);
+    });
+});
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
         </script>
+    <script>
+document.getElementById('register-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const username = document.getElementById('reg-username').value;
+    const email = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-password').value;
+    fetch('http://localhost:3000/register', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, email, password })
+    })
+    .then(response => response.text())
+    .then(data => alert(data))
+    .catch(error => console.error('Error:', error));
+});
+document.getElementById('login-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    fetch('http://localhost:3000/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.auth) {
+            alert('Login successful');
+            localStorage.setItem('token', data.token);
+            showProfile();
+        } else {
+            alert('Login failed');
+        }
+    })
+    .catch(error => console.error('Error:', error));
+});
+function showProfile() {
+    const token = localStorage.getItem('token');
+    fetch('http://localhost:3000/profile', {
+        method: 'GET',
+        headers: {
+            'x-access-token': token
+        }
+    })
+    .then(response => response.json())
+    .then(user => {
+        document.getElementById('profile-username').textContent = `Username: ${user.username}`;
+        document.getElementById('profile-email').textContent = `Email: ${user.email}`;
+        document.getElementById('profile').style.display = 'block';
+    })
+    .catch(error => console.error('Error:', error));
+}
+</script>
 </body>
 </html>
 
